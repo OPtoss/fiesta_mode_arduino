@@ -1,0 +1,80 @@
+<html>
+    <body>
+        <canvas id="myCanvas" width="540" height="540" style="border:1px solid #c3c3c3;">
+            Your browser does not support the canvas element.
+        </canvas>
+        <script type="text/javascript" src="/static/zepto.min.js"></script>
+        <script type="text/javascript">
+            window.onload = function(){
+                var canvas = document.getElementById('myCanvas');
+                var context = canvas.getContext('2d');
+                var img = new Image();
+                img.src = '/static/color_wheel.jpg';
+                context.drawImage(img, 0, 0);
+            };
+
+            function findPos(obj){
+            var current_left = 0, current_top = 0;
+            if (obj.offsetParent){
+                do{
+                    current_left += obj.offsetLeft;
+                    current_top += obj.offsetTop;
+                }while(obj = obj.offsetParent);
+                return {x: current_left, y: current_top};
+            }
+            return undefined;
+            }
+
+            function rgbToHex(r, g, b){
+            if (r > 255 || g > 255 || b > 255)
+                throw "Invalid color component";
+            return ((r << 16) | (g << 8) | b).toString(16);
+            }
+
+        var isMouseDown = false;
+        var color = [0,0,0];
+        var isDirty = false;
+        var awaitingResponse = false;
+        $('#myCanvas').mousedown(function(e){
+            isMouseDown = true;
+        });
+        $(document).mouseup(function(e){
+            isMouseDown = false;
+        });
+        $('#myCanvas').mousemove(function(e){
+            if (isMouseDown)
+            {
+                var position = findPos(this);
+                var x = e.pageX - position.x;
+                var y = e.pageY - position.y;
+                var coordinate = "x=" + x + ", y=" + y;
+                var canvas = this.getContext('2d');
+                var p = canvas.getImageData(x, y, 1, 1).data;
+                //var hex = "#" + ("000000" + rgbToHex(p[0], p[1], p[2])).slice(-6);
+
+                color = p.slice(0, 3);
+                $('.colorstatus').text(color);
+                isDirty = true;
+            }
+        });
+
+        function update(){
+            if (isDirty && !awaitingResponse)
+            {
+                // post new color to server
+                $.post( "/solid", {r: color[0], g: color[1], b: color[2]}, function(response){
+                    $('.responsestatus').text(response);
+                    awaitingResponse = false;
+                });
+                isDirty = false;
+                awaitingResponse = true;
+            }
+            setTimeout(update, 1);
+        }
+        update();
+        </script>
+        <img src="/static/color_wheel.jpg" style="visibility:hidden"/>
+        <div class="colorstatus"></div>
+        <div class="responsestatus"></div>
+    </body>
+</html>
