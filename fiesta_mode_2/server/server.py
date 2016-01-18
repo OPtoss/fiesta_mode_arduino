@@ -17,8 +17,11 @@ except:
 # Init Bridge
 if foundBridge:
 	# Use tcp client directly to avoid bridge opening and closing sockets every request
-	client = TCPJSONClient('127.0.0.1', 5700)
-	#client = bridgeclient()
+	# client = TCPJSONClient('127.0.0.1', 5700)
+	
+	client = bridgeclient()
+	# Begin the client which flags it to not close the socket after each request
+	client.begin()
 
 # Init Flask
 app = Flask(__name__)
@@ -47,13 +50,13 @@ def solid():
 
 def update_solid(r, g, b):
 	if foundBridge:
-		client.send({'command':'put', 'key':'r', 'value':r})
-		client.send({'command':'put', 'key':'g', 'value':g})
-		client.send({'command':'put', 'key':'b', 'value':b})
+		# client.send({'command':'put', 'key':'r', 'value':r})
+		# client.send({'command':'put', 'key':'g', 'value':g})
+		# client.send({'command':'put', 'key':'b', 'value':b})
 		# client.put("mode", Modes.SOLID)
-		# client.put("r", r)
-		# client.put("g", g)
-		# client.put("b", b)
+		client.put("r", r)
+		client.put("g", g)
+		client.put("b", b)
 
 	return "Set solid color to (%s,%s,%s)\n" % (r,g,b)
 

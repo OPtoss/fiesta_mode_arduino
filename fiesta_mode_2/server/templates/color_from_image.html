@@ -1,80 +1,251 @@
 <html>
     <body>
-        <canvas id="myCanvas" width="540" height="540" style="border:1px solid #c3c3c3;">
+        <link rel="stylesheet" type="text/css" href="/static/styles/color_from_image.css">
+        <canvas id="myCanvas" style="border:1px solid #c3c3c3; cursor:crosshair;">
             Your browser does not support the canvas element.
         </canvas>
         <script type="text/javascript" src="/static/zepto.min.js"></script>
         <script type="text/javascript">
-            window.onload = function(){
-                var canvas = document.getElementById('myCanvas');
+
+            // Globals -----------------------------------------------------
+            var canvas = document.getElementById('myCanvas');
+            var isMouseDown = false;
+            var lastPickedPoint = [0,0];
+            var color = [0,0,0];
+            var brightness = 255;
+            var isDirty = false;
+            var awaitingResponse = false;
+
+            // Functions -----------------------------------------------------
+            function resizeCanvas() {
+                canvas.width = window.innerWidth;
+                canvas.height = window.innerHeight;
+
+                drawStuff(); 
+            }
+
+            function drawStuff() {
                 var context = canvas.getContext('2d');
+
+                // Vars
+                var centerX = canvas.width / 2;
+                var centerY = canvas.height / 2;
+                var minSize = Math.min(canvas.width, canvas.height);
+                var maxSize = Math.max(canvas.width, canvas.height);
+                var hex = "#" + ("000000" + rgbToHex(color[0], color[1], color[2])).slice(-6);
+
+                // Background
+                //context.clearRect(0, 0, canvas.width, canvas.height);
+                context.beginPath();
+                context.rect(0, 0, canvas.width, canvas.height);
+                context.fillStyle = '#808080';
+                context.fill();
+
+                // Value gradient
+                context.beginPath();
+                var grd;
+                var grdWidth = (maxSize- minSize)/2;
+                if (canvas.width > canvas.height)
+                {
+                    context.rect(centerX + minSize/2, 0, grdWidth, minSize);
+                    grd = context.createLinearGradient(0,canvas.height/10.0,0,canvas.height-(canvas.height/10.0));
+                }
+                else
+                {
+                    context.rect(0, centerY + minSize/2, minSize, grdWidth);
+                    grd = context.createLinearGradient(minSize/10.0, 0, minSize-(minSize/10.0), 0);
+                }
+                grd.addColorStop(0, 'white');
+                grd.addColorStop(1, 'black');
+                context.fillStyle = grd;
+                context.fill();
+
+                // Selected color
+                context.beginPath();
+                if (canvas.width > canvas.height)
+                {
+                    context.rect(0, 0, grdWidth, minSize);
+                }
+                else
+                {
+                    context.rect(0, 0, minSize, grdWidth);
+                }
+                context.fillStyle = hex;
+                context.fill();
+
+                // Hue circle
+                context.save();
+                var hueRadius = minSize / 2.15;
+                context.beginPath();
+                context.arc(centerX, centerY, hueRadius, 0, 2 * Math.PI, false);
+                context.clip();
+
                 var img = new Image();
-                img.src = '/static/color_wheel.jpg';
-                context.drawImage(img, 0, 0);
-            };
+                img.src = '/static/color_wheel.png';
+                context.drawImage(img, (canvas.width-minSize)/2.0, (canvas.height-minSize)/2.0, minSize, minSize);
 
-            function findPos(obj){
-            var current_left = 0, current_top = 0;
-            if (obj.offsetParent){
-                do{
-                    current_left += obj.offsetLeft;
-                    current_top += obj.offsetTop;
-                }while(obj = obj.offsetParent);
-                return {x: current_left, y: current_top};
-            }
-            return undefined;
+                context.beginPath();
+                context.rect((canvas.width-minSize)/2.0, (canvas.height-minSize)/2.0, minSize, minSize);
+                context.fillStyle = 'black';
+                context.globalAlpha = (255 - brightness)/255;
+                context.fill();
+                context.globalAlpha = 1;
+
+                context.restore();
+
+                // Selected dot
+                // var dotRadius = Math.min(canvas.width, canvas.height) / 6;
+                // context.beginPath();
+                // context.arc(centerX, centerY, dotRadius, 0, 2 * Math.PI, false);
+                // context.fillStyle = hex;
+                // context.fill();
+
+                // Text
+                if (brightness > 128)
+                    context.fillStyle = 'black';
+                else
+                    context.fillStyle = 'white'
+                context.font = '30pt Calibri';
+                context.fillText("HEX", 50, 50);
+                context.fillText(hex, 150, 50);
+                context.fillText("RGB", 50, 100);
+                context.fillText(color, 150, 100);
+
+                // Stroke based on awaiting status
+                if (!awaitingResponse)
+                {
+                    context.beginPath();
+                    context.rect(0, 0, canvas.width, canvas.height);
+                    context.lineWidth = 10;
+                    context.strokeStyle = 'white';
+                    context.stroke();
+                }
             }
 
-            function rgbToHex(r, g, b){
-            if (r > 255 || g > 255 || b > 255)
-                throw "Invalid color component";
-            return ((r << 16) | (g << 8) | b).toString(16);
+            function findPos(obj) {
+                var current_left = 0, current_top = 0;
+                if (obj.offsetParent){
+                    do{
+                        current_left += obj.offsetLeft;
+                        current_top += obj.offsetTop;
+                    }while(obj = obj.offsetParent);
+                    return {x: current_left, y: current_top};
+                }
+                return undefined;
             }
 
-        var isMouseDown = false;
-        var color = [0,0,0];
-        var isDirty = false;
-        var awaitingResponse = false;
-        $('#myCanvas').mousedown(function(e){
-            isMouseDown = true;
-        });
-        $(document).mouseup(function(e){
-            isMouseDown = false;
-        });
-        $('#myCanvas').mousemove(function(e){
-            if (isMouseDown)
-            {
-                var position = findPos(this);
-                var x = e.pageX - position.x;
-                var y = e.pageY - position.y;
+            function rgbToHex(r, g, b) {
+                if (r > 255 || g > 255 || b > 255)
+                    throw "Invalid color component";
+                return ((r << 16) | (g << 8) | b).toString(16);
+            }
+
+            function pickColor(x, y) {
+
+                var position = findPos(canvas);
+                x -= position.x;
+                y -= position.y;
                 var coordinate = "x=" + x + ", y=" + y;
-                var canvas = this.getContext('2d');
-                var p = canvas.getImageData(x, y, 1, 1).data;
+                
+                var context = canvas.getContext('2d');
                 //var hex = "#" + ("000000" + rgbToHex(p[0], p[1], p[2])).slice(-6);
 
-                color = p.slice(0, 3);
-                $('.colorstatus').text(color);
-                isDirty = true;
-            }
-        });
+                var centerX = canvas.width / 2;
+                var centerY = canvas.height / 2;
+                var minSize = Math.min(canvas.width, canvas.height);
+                var maxSize = Math.max(canvas.width, canvas.height);
+                var grdWidth = (maxSize- minSize)/2;
+                var pickBrightness = false;
+                if (canvas.width > canvas.height && x > centerX + minSize/2)
+                {
+                    pickBrightness = true;
+                }
+                else if (canvas.height > canvas.width && y > centerY + minSize/2)
+                {
+                    pickBrightness = true;
+                }
 
-        function update(){
-            if (isDirty && !awaitingResponse)
-            {
-                // post new color to server
-                $.post( "/solid", {r: color[0], g: color[1], b: color[2]}, function(response){
-                    $('.responsestatus').text(response);
-                    awaitingResponse = false;
-                });
-                isDirty = false;
-                awaitingResponse = true;
+                var p = context.getImageData(x, y, 1, 1).data;
+                if (pickBrightness)
+                {
+                    // Change brightness and redraw to apply it
+                    brightness = p[0];
+                    drawStuff();
+
+                    // Then resample the color to get new brightness
+                    var p = context.getImageData(lastPickedPoint[0], lastPickedPoint[1], 1, 1).data;
+                    color = p.slice(0, 3);
+                }
+                else 
+                {
+                    // Just store the color picked and remember it's location
+                    color = p.slice(0, 3);
+                    lastPickedPoint = [x, y];
+                }
+
+                
+                // $('.colorstatus').text(color);
+                isDirty = true;
+
+                drawStuff();
             }
-            setTimeout(update, 1);
-        }
-        update();
+
+            function update() {
+                if (isDirty && !awaitingResponse)
+                {
+                    // post new color to server
+                    $.post( "/solid", {r: color[0], g: color[1], b: color[2]}, function(response){
+                        // $('.responsestatus').text(response);
+                        console.log(response);
+                        awaitingResponse = false;
+                        drawStuff();
+                    });
+                    isDirty = false;
+                    awaitingResponse = true;
+                }
+                setTimeout(update, 1);
+            }
+
+            update();
+
+            // Event Listeners -----------------------------------------------------
+            window.onload = function(){
+                // resize the canvas to fill browser window dynamically
+                window.addEventListener('resize', resizeCanvas, false);
+
+                resizeCanvas();
+            }
+            
+            // Mouse Events
+            $('#myCanvas').mousedown(function(e) {
+                if (!isMouseDown)
+                {
+                    isMouseDown = true;
+                    pickColor(e.pageX, e.pageY);
+                }
+            });
+            $(document).mouseup(function(e){
+                isMouseDown = false;
+            });
+            $('#myCanvas').mousemove(function(e) {
+                if (isMouseDown)
+                {
+                    pickColor(e.pageX, e.pageY);
+                }
+            });
+
+            // Touch Events
+            $('#myCanvas').on({ 'touchmove' : function(e) {
+                pickColor(e.touches[0].pageX, e.touches[0].pageY);
+            }});
+
+            $('#myCanvas').on({ 'touchstart' : function(e) {
+                pickColor(e.touches[0].pageX, e.touches[0].pageY);
+            }});
+
         </script>
-        <img src="/static/color_wheel.jpg" style="visibility:hidden"/>
-        <div class="colorstatus"></div>
-        <div class="responsestatus"></div>
+        <img src="/static/color_wheel.png" style="visibility:hidden; width: 0px; height:0px;"/>
+        <!-- <div class="colorstatus"></div>
+        <div class="responsestatus"></div> -->
     </body>
 </html>
